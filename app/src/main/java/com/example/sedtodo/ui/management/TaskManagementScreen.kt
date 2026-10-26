@@ -155,7 +155,7 @@ fun TaskManagementScreen(
             .padding(16.dp)
     ) {
         Text(
-            text = "Back End Task Configuration",
+            text = "Add Task Configuration",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary
@@ -485,8 +485,6 @@ fun TaskManagementScreen(
                     )
                 }
             }
-
-            item { Spacer(modifier = Modifier.height(32.dp)) }
         }
     }
 }

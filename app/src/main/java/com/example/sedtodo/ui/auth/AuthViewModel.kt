@@ -1,11 +1,13 @@
 package com.example.sedtodo.ui.auth
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.sedtodo.data.model.User
 import com.example.sedtodo.data.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 data class AuthUiState(
     val nameInput: String = "",
@@ -22,8 +24,16 @@ class AuthViewModel : ViewModel() {
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     init {
-        // Synchronize logged-in user
-        _uiState.value = _uiState.value.copy(currentUser = AuthRepository.currentUser.value)
+        // Collect AuthRepository.currentUser flow so uiState updates dynamically whenever user or isAdFreeUser status changes
+        viewModelScope.launch {
+            AuthRepository.currentUser.collect { user ->
+                _uiState.value = _uiState.value.copy(currentUser = user)
+            }
+        }
+    }
+
+    fun refreshUserProfile() {
+        AuthRepository.refreshUserProfile()
     }
 
     fun onNameChange(name: String) {
@@ -113,6 +123,14 @@ class AuthViewModel : ViewModel() {
                 }
             )
         }
+    }
+
+    fun upgradeToAdFree() {
+        AuthRepository.upgradeToAdFree()
+        _uiState.value = _uiState.value.copy(
+            currentUser = AuthRepository.currentUser.value,
+            successMessage = "Congratulations! You are now a Pro (Ad-Free) user!"
+        )
     }
 
     fun sendPasswordReset(email: String, onComplete: (String) -> Unit) {

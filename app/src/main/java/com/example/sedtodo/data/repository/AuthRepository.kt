@@ -5,6 +5,8 @@ import com.google.firebase.auth.ActionCodeSettings
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +17,7 @@ object AuthRepository {
 
     private val auth: FirebaseAuth by lazy { FirebaseAuth.getInstance() }
     private val firestore: FirebaseFirestore by lazy { FirebaseFirestore.getInstance() }
+    private var userSnapshotListener: ListenerRegistration? = null
 
     private fun getActionCodeSettings(): ActionCodeSettings {
         return ActionCodeSettings.newBuilder()
@@ -29,17 +32,42 @@ object AuthRepository {
     }
 
     init {
-        // Sync current Firebase Auth user if already signed in and verified
+        refreshUserProfile()
+    }
+
+    fun refreshUserProfile() {
         try {
             val fbUser = auth.currentUser
             if (fbUser != null && fbUser.isEmailVerified) {
-                val user = User(
+                userSnapshotListener?.remove()
+
+                val defaultUser = User(
                     id = fbUser.uid,
                     name = fbUser.displayName ?: fbUser.email?.substringBefore("@") ?: "User",
                     email = fbUser.email ?: ""
                 )
-                _currentUser.value = user
+                if (_currentUser.value == null) {
+                    _currentUser.value = defaultUser
+                }
+
+                // Listen to real-time changes on the user document in Cloud Firestore
+                userSnapshotListener = firestore.collection("users").document(fbUser.uid)
+                    .addSnapshotListener { snapshot, error ->
+                        if (error == null && snapshot != null && snapshot.exists()) {
+                            val isAdFree = snapshot.getBoolean("isAdFreeUser") ?: false
+                            val name = snapshot.getString("name") ?: defaultUser.name
+                            val updatedUser = User(
+                                id = fbUser.uid,
+                                name = name,
+                                email = fbUser.email ?: "",
+                                isAdFreeUser = isAdFree
+                            )
+                            _currentUser.value = updatedUser
+                        }
+                    }
             } else {
+                userSnapshotListener?.remove()
+                userSnapshotListener = null
                 _currentUser.value = null
             }
         } catch (_: Exception) {}
@@ -59,29 +87,26 @@ object AuthRepository {
                 .addOnSuccessListener { authResult ->
                     val fbUser = authResult.user
                     if (fbUser != null) {
-                        // Update profile display name
                         val profileUpdates = UserProfileChangeRequest.Builder()
                             .setDisplayName(trimmedName)
                             .build()
                         fbUser.updateProfile(profileUpdates)
 
-                        // Send Email Verification link with deep link back to app
                         try {
                             fbUser.sendEmailVerification(getActionCodeSettings())
                         } catch (_: Exception) {
                             fbUser.sendEmailVerification()
                         }
 
-                        // Save user in Firestore
                         val userMap = hashMapOf(
                             "id" to fbUser.uid,
                             "name" to trimmedName,
                             "email" to trimmedEmail,
-                            "isVerified" to false
+                            "isVerified" to false,
+                            "isAdFreeUser" to false
                         )
-                        firestore.collection("users").document(fbUser.uid).set(userMap)
+                        firestore.collection("users").document(fbUser.uid).set(userMap, SetOptions.merge())
 
-                        // Sign out so user cannot log in until email is verified
                         auth.signOut()
                         _currentUser.value = null
 
@@ -110,19 +135,23 @@ object AuthRepository {
                 .addOnSuccessListener { authResult ->
                     val fbUser = authResult.user
                     if (fbUser != null) {
-                        // Reload user state to fetch latest isEmailVerified status from Firebase
                         fbUser.reload().addOnCompleteListener { _ ->
                             if (!fbUser.isEmailVerified) {
-                                // User has not verified email yet!
                                 auth.signOut()
                                 _currentUser.value = null
                                 onResult(Result.failure(Exception("Your account has not been verified. Please check your inbox.")))
                             } else {
-                                // Verified user: fetch profile and log in
+                                refreshUserProfile()
                                 firestore.collection("users").document(fbUser.uid).get()
                                     .addOnSuccessListener { doc ->
                                         val name = doc.getString("name") ?: fbUser.displayName ?: trimmedEmail.substringBefore("@")
-                                        val user = User(id = fbUser.uid, name = name, email = trimmedEmail)
+                                        val isAdFree = doc.getBoolean("isAdFreeUser") ?: false
+                                        val user = User(id = fbUser.uid, name = name, email = trimmedEmail, isAdFreeUser = isAdFree)
+                                        
+                                        if (!doc.contains("isAdFreeUser")) {
+                                            firestore.collection("users").document(fbUser.uid).set(mapOf("isAdFreeUser" to false), SetOptions.merge())
+                                        }
+
                                         _currentUser.value = user
                                         onResult(Result.success(user))
                                     }
@@ -143,6 +172,19 @@ object AuthRepository {
         } catch (e: Exception) {
             onResult(Result.failure(e))
         }
+    }
+
+    fun upgradeToAdFree() {
+        val currUser = _currentUser.value ?: return
+        val updatedUser = currUser.copy(isAdFreeUser = true)
+        _currentUser.value = updatedUser
+
+        try {
+            val uid = auth.currentUser?.uid ?: currUser.id
+            if (uid.isNotEmpty()) {
+                firestore.collection("users").document(uid).set(mapOf("isAdFreeUser" to true), SetOptions.merge())
+            }
+        } catch (_: Exception) {}
     }
 
     fun resendVerificationEmail(email: String, password: String, onResult: (Result<String>) -> Unit) {
@@ -207,7 +249,7 @@ object AuthRepository {
                 if (newPassword.isNotEmpty()) {
                     fbUser.updatePassword(newPassword)
                 }
-                firestore.collection("users").document(fbUser.uid).update("email", trimmedEmail)
+                firestore.collection("users").document(fbUser.uid).set(mapOf("email" to trimmedEmail), SetOptions.merge())
             }
         } catch (_: Exception) {}
 
@@ -217,6 +259,8 @@ object AuthRepository {
 
     fun logout() {
         try {
+            userSnapshotListener?.remove()
+            userSnapshotListener = null
             auth.signOut()
         } catch (_: Exception) {}
         _currentUser.value = null

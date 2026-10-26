@@ -28,13 +28,11 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,17 +56,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.sedtodo.data.model.Task
 import com.example.sedtodo.data.model.TaskType
+import com.example.sedtodo.ui.components.NativeAdCard
 import com.example.sedtodo.ui.task.TaskViewModel
 import com.example.sedtodo.ui.theme.getColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     taskViewModel: TaskViewModel,
-    userName: String = "User"
+    userName: String = "User",
+    isAdFreeUser: Boolean = false,
+    onRemoveAdsClick: () -> Unit = {}
 ) {
     val dashboardTasks by taskViewModel.todayDashboardTasks.collectAsState()
     var showAddDailyTaskDialog by remember { mutableStateOf(false) }
@@ -81,33 +81,10 @@ fun DashboardScreen(
         LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d, yyyy"))
     }
 
-    Scaffold(
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { showAddDailyTaskDialog = true },
-                containerColor = TaskType.DAILY.getColors().primary,
-                contentColor = Color.White,
-                modifier = Modifier
-                    .offset { IntOffset(fabOffsetX.roundToInt(), fabOffsetY.roundToInt()) }
-                    .pointerInput(Unit) {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            fabOffsetX += dragAmount.x
-                            fabOffsetY += dragAmount.y
-                        }
-                    }
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Add,
-                    contentDescription = "Add Daily Task (Draggable)"
-                )
-            }
-        }
-    ) { paddingValues ->
+    Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
                 .padding(horizontal = 16.dp, vertical = 12.dp)
         ) {
             // Dashboard Header
@@ -128,31 +105,45 @@ fun DashboardScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             if (dashboardTasks.isEmpty) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.EventNote,
-                            contentDescription = "No tasks",
-                            modifier = Modifier.size(72.dp),
-                            tint = MaterialTheme.colorScheme.outline
+                    item {
+                        NativeAdCard(
+                            isAdFreeUser = isAdFreeUser,
+                            onRemoveAdsClick = onRemoveAdsClick
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "All caught up for today!",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "Use the draggable + button or Manage Tasks to add items.",
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.outline
-                        )
+                    }
+
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 32.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.EventNote,
+                                    contentDescription = "No tasks",
+                                    modifier = Modifier.size(72.dp),
+                                    tint = MaterialTheme.colorScheme.outline
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "All caught up for today!",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = "Use the draggable + button or Manage Tasks to add items.",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.outline
+                                )
+                            }
+                        }
                     }
                 }
             } else {
@@ -160,6 +151,14 @@ fun DashboardScreen(
                     modifier = Modifier.fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
+                    // Native Ad
+                    item {
+                        NativeAdCard(
+                            isAdFreeUser = isAdFreeUser,
+                            onRemoveAdsClick = onRemoveAdsClick
+                        )
+                    }
+
                     // 1. Daily Tasks
                     if (dashboardTasks.dailyTasks.isNotEmpty()) {
                         item {
@@ -244,10 +243,31 @@ fun DashboardScreen(
                             )
                         }
                     }
-
-                    item { Spacer(modifier = Modifier.height(72.dp)) }
                 }
             }
+        }
+
+        // Draggable FAB overlay
+        FloatingActionButton(
+            onClick = { showAddDailyTaskDialog = true },
+            containerColor = TaskType.DAILY.getColors().primary,
+            contentColor = Color.White,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(16.dp)
+                .offset { IntOffset(fabOffsetX.roundToInt(), fabOffsetY.roundToInt()) }
+                .pointerInput(Unit) {
+                    detectDragGestures { change, dragAmount ->
+                        change.consume()
+                        fabOffsetX += dragAmount.x
+                        fabOffsetY += dragAmount.y
+                    }
+                }
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = "Add Daily Task (Draggable)"
+            )
         }
     }
 
