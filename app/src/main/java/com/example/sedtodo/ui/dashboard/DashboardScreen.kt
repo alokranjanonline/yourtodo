@@ -1,5 +1,6 @@
 package com.example.sedtodo.ui.dashboard
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -50,6 +51,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -72,6 +74,7 @@ fun DashboardScreen(
 ) {
     val dashboardTasks by taskViewModel.todayDashboardTasks.collectAsState()
     var showAddDailyTaskDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     // Floating position offset for draggable FAB
     var fabOffsetX by remember { mutableFloatStateOf(0f) }
@@ -171,7 +174,10 @@ fun DashboardScreen(
                         items(dashboardTasks.dailyTasks, key = { it.id }) { task ->
                             DashboardTaskCard(
                                 task = task,
-                                onMarkDone = { taskViewModel.markTaskDone(task.id) }
+                                onMarkDone = {
+                                    taskViewModel.markTaskDone(task.id)
+                                    Toast.makeText(context, "Task completed!", Toast.LENGTH_SHORT).show()
+                                }
                             )
                         }
                     }
@@ -188,7 +194,10 @@ fun DashboardScreen(
                         items(dashboardTasks.tillCompletedTasks, key = { it.id }) { task ->
                             DashboardTaskCard(
                                 task = task,
-                                onMarkDone = { taskViewModel.markTaskDone(task.id) }
+                                onMarkDone = {
+                                    taskViewModel.markTaskDone(task.id)
+                                    Toast.makeText(context, "Task completed!", Toast.LENGTH_SHORT).show()
+                                }
                             )
                         }
                     }
@@ -205,7 +214,10 @@ fun DashboardScreen(
                         items(dashboardTasks.fixDateTasks, key = { it.id }) { task ->
                             DashboardTaskCard(
                                 task = task,
-                                onMarkDone = { taskViewModel.markTaskDone(task.id) }
+                                onMarkDone = {
+                                    taskViewModel.markTaskDone(task.id)
+                                    Toast.makeText(context, "Task completed!", Toast.LENGTH_SHORT).show()
+                                }
                             )
                         }
                     }
@@ -222,7 +234,10 @@ fun DashboardScreen(
                         items(dashboardTasks.weeklyTasks, key = { it.id }) { task ->
                             DashboardTaskCard(
                                 task = task,
-                                onMarkDone = { taskViewModel.markTaskDone(task.id) }
+                                onMarkDone = {
+                                    taskViewModel.markTaskDone(task.id)
+                                    Toast.makeText(context, "Task completed!", Toast.LENGTH_SHORT).show()
+                                }
                             )
                         }
                     }
@@ -239,7 +254,10 @@ fun DashboardScreen(
                         items(dashboardTasks.monthlyTasks, key = { it.id }) { task ->
                             DashboardTaskCard(
                                 task = task,
-                                onMarkDone = { taskViewModel.markTaskDone(task.id) }
+                                onMarkDone = {
+                                    taskViewModel.markTaskDone(task.id)
+                                    Toast.makeText(context, "Task completed!", Toast.LENGTH_SHORT).show()
+                                }
                             )
                         }
                     }
@@ -256,7 +274,10 @@ fun DashboardScreen(
                         items(dashboardTasks.yearlyTasks, key = { it.id }) { task ->
                             DashboardTaskCard(
                                 task = task,
-                                onMarkDone = { taskViewModel.markTaskDone(task.id) }
+                                onMarkDone = {
+                                    taskViewModel.markTaskDone(task.id)
+                                    Toast.makeText(context, "Task completed!", Toast.LENGTH_SHORT).show()
+                                }
                             )
                         }
                     }
@@ -294,6 +315,7 @@ fun DashboardScreen(
             onDismiss = { showAddDailyTaskDialog = false },
             onSubmit = { title, description ->
                 taskViewModel.addDailyTask(title, description)
+                Toast.makeText(context, "Daily task created successfully!", Toast.LENGTH_SHORT).show()
                 showAddDailyTaskDialog = false
             }
         )

@@ -1,5 +1,6 @@
 package com.example.sedtodo.ui.management
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -60,6 +61,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -88,6 +90,7 @@ fun TaskManagementScreen(
     taskViewModel: TaskViewModel
 ) {
     val allTasks by taskViewModel.allTasks.collectAsState()
+    val context = LocalContext.current
 
     val taskTypes = remember {
         listOf(
@@ -427,7 +430,6 @@ fun TaskManagementScreen(
                                     }
                                 }
                                 TaskType.FIX_DATE -> {
-                                    // Dynamically calculate valid day range for Fix Date based on Leap Year & Month rules!
                                     val maxDays = getMaxDaysInMonth(selectedYear, selectedMonth)
                                     if (selectedDayOfMonth > maxDays) {
                                         selectedDayOfMonth = maxDays
@@ -513,8 +515,10 @@ fun TaskManagementScreen(
                                             )
                                             if (editingTaskId == null) {
                                                 taskViewModel.addTask(task)
+                                                Toast.makeText(context, "Task created successfully!", Toast.LENGTH_SHORT).show()
                                             } else {
                                                 taskViewModel.updateTask(task)
+                                                Toast.makeText(context, "Task updated successfully!", Toast.LENGTH_SHORT).show()
                                             }
                                             resetForm()
                                         }
@@ -554,7 +558,10 @@ fun TaskManagementScreen(
                         TaskManagementCard(
                             task = task,
                             onEdit = { startEditing(task) },
-                            onDelete = { taskViewModel.deleteTask(task.id) }
+                            onDelete = {
+                                taskViewModel.deleteTask(task.id)
+                                Toast.makeText(context, "Task deleted successfully!", Toast.LENGTH_SHORT).show()
+                            }
                         )
                     }
                 }

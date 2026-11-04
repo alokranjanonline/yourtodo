@@ -1,5 +1,6 @@
 package com.example.sedtodo.ui.note
 
+import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -68,6 +70,7 @@ fun NotesScreen(
     val notes by noteViewModel.notes.collectAsState()
     var editingNote by remember { mutableStateOf<Note?>(null) }
     var showAddNoteDialog by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     var fabOffsetX by remember { mutableFloatStateOf(0f) }
     var fabOffsetY by remember { mutableFloatStateOf(0f) }
@@ -135,7 +138,10 @@ fun NotesScreen(
                                 editingNote = note
                                 showAddNoteDialog = true
                             },
-                            onDelete = { noteViewModel.deleteNote(note.id) }
+                            onDelete = {
+                                noteViewModel.deleteNote(note.id)
+                                Toast.makeText(context, "Note deleted successfully!", Toast.LENGTH_SHORT).show()
+                            }
                         )
                     }
                 }
@@ -175,8 +181,10 @@ fun NotesScreen(
             onSubmit = { title, content ->
                 if (editingNote == null) {
                     noteViewModel.addNote(title, content)
+                    Toast.makeText(context, "Note created successfully!", Toast.LENGTH_SHORT).show()
                 } else {
                     noteViewModel.updateNote(editingNote!!.copy(title = title, content = content))
+                    Toast.makeText(context, "Note updated successfully!", Toast.LENGTH_SHORT).show()
                 }
                 showAddNoteDialog = false
             }
