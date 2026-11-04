@@ -71,7 +71,16 @@ import com.example.sedtodo.ui.task.TaskViewModel
 import com.example.sedtodo.ui.theme.getColors
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.Year
 import kotlin.math.absoluteValue
+
+fun getMaxDaysInMonth(year: Int, month: Int): Int {
+    return when (month) {
+        2 -> if (Year.isLeap(year.toLong())) 29 else 28
+        4, 6, 9, 11 -> 30
+        else -> 31
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -229,7 +238,6 @@ fun TaskManagementScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .graphicsLayer {
-                        // Calculate page offset fraction during draw phase for high performance 60/120fps transition
                         val pageOffset = (
                             (pagerState.currentPage - pageIndex) + pagerState.currentPageOffsetFraction
                         ).absoluteValue
@@ -381,6 +389,11 @@ fun TaskManagementScreen(
                                     )
                                 }
                                 TaskType.YEARLY -> {
+                                    val maxDays = getMaxDaysInMonth(LocalDate.now().year, selectedMonth)
+                                    if (selectedDayOfMonth > maxDays) {
+                                        selectedDayOfMonth = maxDays
+                                    }
+
                                     Text(
                                         text = "Select Month & Day:",
                                         fontSize = 14.sp,
@@ -394,20 +407,32 @@ fun TaskManagementScreen(
                                         Box(modifier = Modifier.weight(1f)) {
                                             MonthDropdownSelector(
                                                 selectedMonth = selectedMonth,
-                                                onSelect = { selectedMonth = it }
+                                                onSelect = {
+                                                    selectedMonth = it
+                                                    val newMaxDays = getMaxDaysInMonth(LocalDate.now().year, it)
+                                                    if (selectedDayOfMonth > newMaxDays) {
+                                                        selectedDayOfMonth = newMaxDays
+                                                    }
+                                                }
                                             )
                                         }
                                         Box(modifier = Modifier.weight(1f)) {
                                             NumberDropdownSelector(
                                                 label = "Day",
                                                 selectedValue = selectedDayOfMonth,
-                                                range = 1..31,
+                                                range = 1..maxDays,
                                                 onSelect = { selectedDayOfMonth = it }
                                             )
                                         }
                                     }
                                 }
                                 TaskType.FIX_DATE -> {
+                                    // Dynamically calculate valid day range for Fix Date based on Leap Year & Month rules!
+                                    val maxDays = getMaxDaysInMonth(selectedYear, selectedMonth)
+                                    if (selectedDayOfMonth > maxDays) {
+                                        selectedDayOfMonth = maxDays
+                                    }
+
                                     Text(
                                         text = "Select Fix Date (Year, Month, Day):",
                                         fontSize = 14.sp,
@@ -422,21 +447,33 @@ fun TaskManagementScreen(
                                             NumberDropdownSelector(
                                                 label = "Year",
                                                 selectedValue = selectedYear,
-                                                range = 2026..2030,
-                                                onSelect = { selectedYear = it }
+                                                range = 2026..2035,
+                                                onSelect = {
+                                                    selectedYear = it
+                                                    val newMaxDays = getMaxDaysInMonth(it, selectedMonth)
+                                                    if (selectedDayOfMonth > newMaxDays) {
+                                                        selectedDayOfMonth = newMaxDays
+                                                    }
+                                                }
                                             )
                                         }
                                         Box(modifier = Modifier.weight(1f)) {
                                             MonthDropdownSelector(
                                                 selectedMonth = selectedMonth,
-                                                onSelect = { selectedMonth = it }
+                                                onSelect = {
+                                                    selectedMonth = it
+                                                    val newMaxDays = getMaxDaysInMonth(selectedYear, it)
+                                                    if (selectedDayOfMonth > newMaxDays) {
+                                                        selectedDayOfMonth = newMaxDays
+                                                    }
+                                                }
                                             )
                                         }
                                         Box(modifier = Modifier.weight(1f)) {
                                             NumberDropdownSelector(
                                                 label = "Day",
                                                 selectedValue = selectedDayOfMonth,
-                                                range = 1..31,
+                                                range = 1..maxDays,
                                                 onSelect = { selectedDayOfMonth = it }
                                             )
                                         }
