@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
@@ -43,6 +45,7 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -56,6 +59,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
@@ -67,6 +71,7 @@ import com.example.sedtodo.ui.task.TaskViewModel
 import com.example.sedtodo.ui.theme.getColors
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import kotlin.math.absoluteValue
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -74,26 +79,27 @@ fun TaskManagementScreen(
     taskViewModel: TaskViewModel
 ) {
     val allTasks by taskViewModel.allTasks.collectAsState()
-    var selectedTabIndex by remember { mutableIntStateOf(0) }
+
+    val taskTypes = remember {
+        listOf(
+            TaskType.DAILY,
+            TaskType.WEEKLY,
+            TaskType.MONTHLY,
+            TaskType.YEARLY,
+            TaskType.FIX_DATE,
+            TaskType.TILL_COMPLETED
+        )
+    }
+
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { taskTypes.size })
+    val selectedTabIndex = pagerState.currentPage
 
     val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
-    val taskTypes = listOf(
-        TaskType.DAILY,
-        TaskType.WEEKLY,
-        TaskType.MONTHLY,
-        TaskType.YEARLY,
-        TaskType.FIX_DATE
-    )
-
     val currentType = taskTypes[selectedTabIndex]
     val typeColors = currentType.getColors()
-
-    val tasksForCurrentType = remember(allTasks, currentType) {
-        allTasks.filter { it.type == currentType }
-    }
 
     // Form State using TextFieldValue to ensure cursor position control
     var editingTaskId by remember { mutableStateOf<String?>(null) }
@@ -124,14 +130,17 @@ fun TaskManagementScreen(
         selectedYear = LocalDate.now().year
     }
 
+    // Reset form when sliding to another tab page
+    LaunchedEffect(pagerState.currentPage) {
+        resetForm()
+    }
+
     fun startEditing(task: Task) {
         editingTaskId = task.id
-        // Place cursor at the very end of title text
         titleInput = TextFieldValue(
             text = task.title,
             selection = TextRange(task.title.length)
         )
-        // Place cursor at the very end of description text
         descriptionInput = TextFieldValue(
             text = task.description,
             selection = TextRange(task.description.length)
@@ -142,7 +151,6 @@ fun TaskManagementScreen(
         selectedMonth = task.month
         selectedYear = task.year
 
-        // Scroll to top where edit box is located and request focus on title
         coroutineScope.launch {
             listState.animateScrollToItem(0)
             focusRequester.requestFocus()
@@ -163,7 +171,7 @@ fun TaskManagementScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Tab links ("Daily Task", "Weekly Task", "Monthly Task", "Yearly Task", "At Fix Date")
+        // Tab links with smooth slider synchronization
         ScrollableTabRow(
             selectedTabIndex = selectedTabIndex,
             edgePadding = 0.dp,
@@ -180,7 +188,9 @@ fun TaskManagementScreen(
                 Tab(
                     selected = isSelected,
                     onClick = {
-                        selectedTabIndex = index
+                        coroutineScope.launch {
+                            pagerState.animateScrollToPage(index)
+                        }
                         resetForm()
                     },
                     text = {
@@ -191,6 +201,7 @@ fun TaskManagementScreen(
                                 TaskType.MONTHLY -> "Monthly Task"
                                 TaskType.YEARLY -> "Yearly Task"
                                 TaskType.FIX_DATE -> "At Fix Date"
+                                TaskType.TILL_COMPLETED -> "Till Completed"
                             },
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) colors.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -202,287 +213,313 @@ fun TaskManagementScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // ITEM 1: Form Section Card directly below the tab links so edit box is immediately visible
-            item {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .border(1.dp, typeColors.primary, RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = typeColors.container.copy(alpha = 0.2f))
-                ) {
-                    Column(
+        // Horizontal Pager with custom smooth Scale & Alpha page transition effect
+        HorizontalPager(
+            state = pagerState,
+            modifier = Modifier.fillMaxSize()
+        ) { pageIndex ->
+            val pageType = taskTypes[pageIndex]
+            val pageColors = pageType.getColors()
+            val tasksForPageType = remember(allTasks, pageType) {
+                allTasks.filter { it.type == pageType }
+            }
+
+            LazyColumn(
+                state = if (pageIndex == selectedTabIndex) listState else rememberLazyListState(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        // Calculate page offset fraction during draw phase for high performance 60/120fps transition
+                        val pageOffset = (
+                            (pagerState.currentPage - pageIndex) + pagerState.currentPageOffsetFraction
+                        ).absoluteValue
+
+                        val scale = 0.90f + (1f - 0.90f) * (1f - pageOffset.coerceIn(0f, 1f))
+                        val alpha = 0.40f + (1f - 0.40f) * (1f - pageOffset.coerceIn(0f, 1f))
+
+                        scaleX = scale
+                        scaleY = scale
+                        this.alpha = alpha
+                    },
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // ITEM 1: Form Section Card
+                item {
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .border(1.dp, pageColors.primary, RoundedCornerShape(16.dp)),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = pageColors.container.copy(alpha = 0.2f))
                     ) {
-                        Text(
-                            text = if (editingTaskId == null) "Add ${currentType.displayName}" else "Edit ${currentType.displayName}",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = typeColors.primary
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Title Text Box - Mandatory with Focus at end of text and Highlight support
-                        OutlinedTextField(
-                            value = titleInput,
-                            onValueChange = {
-                                titleInput = it
-                                if (isTitleError && it.text.trim().isNotEmpty()) {
-                                    isTitleError = false
-                                }
-                            },
-                            label = { Text("Task Title *") },
-                            singleLine = true,
-                            isError = isTitleError,
-                            supportingText = {
-                                if (isTitleError) {
-                                    Text(
-                                        text = "Task Title is required!",
-                                        color = MaterialTheme.colorScheme.error,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            },
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .focusRequester(focusRequester)
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Description Box
-                        OutlinedTextField(
-                            value = descriptionInput,
-                            onValueChange = { descriptionInput = it },
-                            label = { Text("Description") },
-                            modifier = Modifier.fillMaxWidth(),
-                            maxLines = 3
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Type-Specific Inputs
-                        when (currentType) {
-                            TaskType.DAILY -> {
-                                // Simple text box & description box only
-                            }
-                            TaskType.WEEKLY -> {
-                                Text(
-                                    text = "Select Week Days:",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                val weekDaysList = listOf(
-                                    1 to "Mon", 2 to "Tue", 3 to "Wed",
-                                    4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun"
-                                )
-
-                                FlowRow(
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    weekDaysList.forEach { (dayValue, dayLabel) ->
-                                        val isChecked = selectedDaysOfWeek.contains(dayValue)
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(if (isChecked) typeColors.container else MaterialTheme.colorScheme.surface)
-                                                .border(1.dp, typeColors.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                                .clickable {
-                                                    selectedDaysOfWeek = if (isChecked) {
-                                                        if (selectedDaysOfWeek.size > 1) selectedDaysOfWeek - dayValue else selectedDaysOfWeek
-                                                    } else {
-                                                        selectedDaysOfWeek + dayValue
-                                                    }
-                                                }
-                                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                                        ) {
-                                            Checkbox(
-                                                checked = isChecked,
-                                                onCheckedChange = { checked ->
-                                                    selectedDaysOfWeek = if (checked == true) {
-                                                        selectedDaysOfWeek + dayValue
-                                                    } else {
-                                                        if (selectedDaysOfWeek.size > 1) selectedDaysOfWeek - dayValue else selectedDaysOfWeek
-                                                    }
-                                                },
-                                                colors = CheckboxDefaults.colors(checkedColor = typeColors.primary)
-                                            )
-                                            Text(
-                                                text = dayLabel,
-                                                fontSize = 13.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            TaskType.MONTHLY -> {
-                                Text(
-                                    text = "Select Day of Month (1 - 31):",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                NumberDropdownSelector(
-                                    label = "Day of Month",
-                                    selectedValue = selectedDayOfMonth,
-                                    range = 1..31,
-                                    onSelect = { selectedDayOfMonth = it }
-                                )
-                            }
-                            TaskType.YEARLY -> {
-                                Text(
-                                    text = "Select Month & Day:",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        MonthDropdownSelector(
-                                            selectedMonth = selectedMonth,
-                                            onSelect = { selectedMonth = it }
-                                        )
-                                    }
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        NumberDropdownSelector(
-                                            label = "Day",
-                                            selectedValue = selectedDayOfMonth,
-                                            range = 1..31,
-                                            onSelect = { selectedDayOfMonth = it }
-                                        )
-                                    }
-                                }
-                            }
-                            TaskType.FIX_DATE -> {
-                                Text(
-                                    text = "Select Fix Date (Year, Month, Day):",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        NumberDropdownSelector(
-                                            label = "Year",
-                                            selectedValue = selectedYear,
-                                            range = 2026..2030,
-                                            onSelect = { selectedYear = it }
-                                        )
-                                    }
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        MonthDropdownSelector(
-                                            selectedMonth = selectedMonth,
-                                            onSelect = { selectedMonth = it }
-                                        )
-                                    }
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        NumberDropdownSelector(
-                                            label = "Day",
-                                            selectedValue = selectedDayOfMonth,
-                                            range = 1..31,
-                                            onSelect = { selectedDayOfMonth = it }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Cancel & Submit buttons
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
+                                .padding(16.dp)
                         ) {
-                            OutlinedButton(onClick = { resetForm() }) {
-                                Text("Cancel")
-                            }
+                            Text(
+                                text = if (editingTaskId == null) "Add ${pageType.displayName}" else "Edit ${pageType.displayName}",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = pageColors.primary
+                            )
 
-                            Spacer(modifier = Modifier.width(12.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
-                            Button(
-                                onClick = {
-                                    if (titleInput.text.trim().isEmpty()) {
-                                        isTitleError = true
-                                        focusRequester.requestFocus()
-                                    } else {
+                            // Title Text Box
+                            OutlinedTextField(
+                                value = titleInput,
+                                onValueChange = {
+                                    titleInput = it
+                                    if (isTitleError && it.text.trim().isNotEmpty()) {
                                         isTitleError = false
-                                        val task = Task(
-                                            id = editingTaskId ?: "",
-                                            title = titleInput.text.trim(),
-                                            description = descriptionInput.text.trim(),
-                                            type = currentType,
-                                            daysOfWeek = selectedDaysOfWeek,
-                                            dayOfMonth = selectedDayOfMonth,
-                                            month = selectedMonth,
-                                            year = selectedYear
-                                        )
-                                        if (editingTaskId == null) {
-                                            taskViewModel.addTask(task)
-                                        } else {
-                                            taskViewModel.updateTask(task)
-                                        }
-                                        resetForm()
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = typeColors.primary)
+                                label = { Text("Task Title *") },
+                                singleLine = true,
+                                isError = isTitleError,
+                                supportingText = {
+                                    if (isTitleError) {
+                                        Text(
+                                            text = "Task Title is required!",
+                                            color = MaterialTheme.colorScheme.error,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .focusRequester(focusRequester)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Description Box
+                            OutlinedTextField(
+                                value = descriptionInput,
+                                onValueChange = { descriptionInput = it },
+                                label = { Text("Description") },
+                                modifier = Modifier.fillMaxWidth(),
+                                maxLines = 3
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            // Type-Specific Inputs
+                            when (pageType) {
+                                TaskType.DAILY, TaskType.TILL_COMPLETED -> {
+                                    // Simple text box & description box only
+                                }
+                                TaskType.WEEKLY -> {
+                                    Text(
+                                        text = "Select Week Days:",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    val weekDaysList = listOf(
+                                        1 to "Mon", 2 to "Tue", 3 to "Wed",
+                                        4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun"
+                                    )
+
+                                    FlowRow(
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        weekDaysList.forEach { (dayValue, dayLabel) ->
+                                            val isChecked = selectedDaysOfWeek.contains(dayValue)
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(8.dp))
+                                                    .background(if (isChecked) pageColors.container else MaterialTheme.colorScheme.surface)
+                                                    .border(1.dp, pageColors.primary.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                                    .clickable {
+                                                        selectedDaysOfWeek = if (isChecked) {
+                                                            if (selectedDaysOfWeek.size > 1) selectedDaysOfWeek - dayValue else selectedDaysOfWeek
+                                                        } else {
+                                                            selectedDaysOfWeek + dayValue
+                                                        }
+                                                    }
+                                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                            ) {
+                                                Checkbox(
+                                                    checked = isChecked,
+                                                    onCheckedChange = { checked ->
+                                                        selectedDaysOfWeek = if (checked == true) {
+                                                            selectedDaysOfWeek + dayValue
+                                                        } else {
+                                                            if (selectedDaysOfWeek.size > 1) selectedDaysOfWeek - dayValue else selectedDaysOfWeek
+                                                        }
+                                                    },
+                                                    colors = CheckboxDefaults.colors(checkedColor = pageColors.primary)
+                                                )
+                                                Text(
+                                                    text = dayLabel,
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Medium
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                                TaskType.MONTHLY -> {
+                                    Text(
+                                        text = "Select Day of Month (1 - 31):",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    NumberDropdownSelector(
+                                        label = "Day of Month",
+                                        selectedValue = selectedDayOfMonth,
+                                        range = 1..31,
+                                        onSelect = { selectedDayOfMonth = it }
+                                    )
+                                }
+                                TaskType.YEARLY -> {
+                                    Text(
+                                        text = "Select Month & Day:",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            MonthDropdownSelector(
+                                                selectedMonth = selectedMonth,
+                                                onSelect = { selectedMonth = it }
+                                            )
+                                        }
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            NumberDropdownSelector(
+                                                label = "Day",
+                                                selectedValue = selectedDayOfMonth,
+                                                range = 1..31,
+                                                onSelect = { selectedDayOfMonth = it }
+                                            )
+                                        }
+                                    }
+                                }
+                                TaskType.FIX_DATE -> {
+                                    Text(
+                                        text = "Select Fix Date (Year, Month, Day):",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            NumberDropdownSelector(
+                                                label = "Year",
+                                                selectedValue = selectedYear,
+                                                range = 2026..2030,
+                                                onSelect = { selectedYear = it }
+                                            )
+                                        }
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            MonthDropdownSelector(
+                                                selectedMonth = selectedMonth,
+                                                onSelect = { selectedMonth = it }
+                                            )
+                                        }
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            NumberDropdownSelector(
+                                                label = "Day",
+                                                selectedValue = selectedDayOfMonth,
+                                                range = 1..31,
+                                                onSelect = { selectedDayOfMonth = it }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            // Cancel & Submit buttons
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.End
                             ) {
-                                Text(if (editingTaskId == null) "Submit" else "Update", fontWeight = FontWeight.Bold)
+                                OutlinedButton(onClick = { resetForm() }) {
+                                    Text("Cancel")
+                                }
+
+                                Spacer(modifier = Modifier.width(12.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (titleInput.text.trim().isEmpty()) {
+                                            isTitleError = true
+                                            focusRequester.requestFocus()
+                                        } else {
+                                            isTitleError = false
+                                            val task = Task(
+                                                id = editingTaskId ?: "",
+                                                title = titleInput.text.trim(),
+                                                description = descriptionInput.text.trim(),
+                                                type = pageType,
+                                                daysOfWeek = selectedDaysOfWeek,
+                                                dayOfMonth = selectedDayOfMonth,
+                                                month = selectedMonth,
+                                                year = selectedYear
+                                            )
+                                            if (editingTaskId == null) {
+                                                taskViewModel.addTask(task)
+                                            } else {
+                                                taskViewModel.updateTask(task)
+                                            }
+                                            resetForm()
+                                        }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = pageColors.primary)
+                                ) {
+                                    Text(if (editingTaskId == null) "Submit" else "Update", fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            // ITEM 2: Task List Section Header
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Configured ${currentType.displayName}s (${tasksForCurrentType.size})",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = typeColors.primary
-                )
-            }
-
-            // ITEM 3: Configured Task Items
-            if (tasksForCurrentType.isEmpty()) {
+                // ITEM 2: Task List Section Header
                 item {
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "No ${currentType.displayName.lowercase()}s configured yet.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.outline,
-                        modifier = Modifier.padding(vertical = 8.dp)
+                        text = "Configured ${pageType.displayName}s (${tasksForPageType.size})",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = pageColors.primary
                     )
                 }
-            } else {
-                items(tasksForCurrentType, key = { it.id }) { task ->
-                    TaskManagementCard(
-                        task = task,
-                        onEdit = { startEditing(task) },
-                        onDelete = { taskViewModel.deleteTask(task.id) }
-                    )
+
+                // ITEM 3: Configured Task Items
+                if (tasksForPageType.isEmpty()) {
+                    item {
+                        Text(
+                            text = "No ${pageType.displayName.lowercase()}s configured yet.",
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                    }
+                } else {
+                    items(tasksForPageType, key = { it.id }) { task ->
+                        TaskManagementCard(
+                            task = task,
+                            onEdit = { startEditing(task) },
+                            onDelete = { taskViewModel.deleteTask(task.id) }
+                        )
+                    }
                 }
             }
         }
@@ -531,6 +568,7 @@ fun TaskManagementCard(
                 // Config Summary
                 val configSummary = when (task.type) {
                     TaskType.DAILY -> "Every Day"
+                    TaskType.TILL_COMPLETED -> "Displayed daily until completed"
                     TaskType.WEEKLY -> {
                         val daysMap = mapOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
                         "Days: " + task.daysOfWeek.mapNotNull { daysMap[it] }.joinToString(", ")

@@ -16,10 +16,11 @@ data class TodayDashboardTasks(
     val fixDateTasks: List<Task> = emptyList(),
     val weeklyTasks: List<Task> = emptyList(),
     val monthlyTasks: List<Task> = emptyList(),
-    val yearlyTasks: List<Task> = emptyList()
+    val yearlyTasks: List<Task> = emptyList(),
+    val tillCompletedTasks: List<Task> = emptyList()
 ) {
     val isEmpty: Boolean
-        get() = dailyTasks.isEmpty() && fixDateTasks.isEmpty() && weeklyTasks.isEmpty() && monthlyTasks.isEmpty() && yearlyTasks.isEmpty()
+        get() = dailyTasks.isEmpty() && fixDateTasks.isEmpty() && weeklyTasks.isEmpty() && monthlyTasks.isEmpty() && yearlyTasks.isEmpty() && tillCompletedTasks.isEmpty()
 }
 
 class TaskViewModel : ViewModel() {
@@ -34,7 +35,8 @@ class TaskViewModel : ViewModel() {
             fixDateTasks = scheduledToday.filter { it.type == TaskType.FIX_DATE },
             weeklyTasks = scheduledToday.filter { it.type == TaskType.WEEKLY },
             monthlyTasks = scheduledToday.filter { it.type == TaskType.MONTHLY },
-            yearlyTasks = scheduledToday.filter { it.type == TaskType.YEARLY }
+            yearlyTasks = scheduledToday.filter { it.type == TaskType.YEARLY },
+            tillCompletedTasks = scheduledToday.filter { it.type == TaskType.TILL_COMPLETED }
         )
     }.stateIn(
         scope = viewModelScope,

@@ -176,7 +176,24 @@ fun DashboardScreen(
                         }
                     }
 
-                    // 2. Fix Date Tasks
+                    // 2. Till Completed Tasks (Ongoing tasks that display daily until finished)
+                    if (dashboardTasks.tillCompletedTasks.isNotEmpty()) {
+                        item {
+                            DashboardTaskSectionHeader(
+                                title = "Till Completed Tasks",
+                                type = TaskType.TILL_COMPLETED,
+                                count = dashboardTasks.tillCompletedTasks.size
+                            )
+                        }
+                        items(dashboardTasks.tillCompletedTasks, key = { it.id }) { task ->
+                            DashboardTaskCard(
+                                task = task,
+                                onMarkDone = { taskViewModel.markTaskDone(task.id) }
+                            )
+                        }
+                    }
+
+                    // 3. Fix Date Tasks
                     if (dashboardTasks.fixDateTasks.isNotEmpty()) {
                         item {
                             DashboardTaskSectionHeader(
@@ -193,7 +210,7 @@ fun DashboardScreen(
                         }
                     }
 
-                    // 3. Weekly Tasks
+                    // 4. Weekly Tasks
                     if (dashboardTasks.weeklyTasks.isNotEmpty()) {
                         item {
                             DashboardTaskSectionHeader(
@@ -210,7 +227,7 @@ fun DashboardScreen(
                         }
                     }
 
-                    // 4. Monthly Tasks
+                    // 5. Monthly Tasks
                     if (dashboardTasks.monthlyTasks.isNotEmpty()) {
                         item {
                             DashboardTaskSectionHeader(
@@ -227,7 +244,7 @@ fun DashboardScreen(
                         }
                     }
 
-                    // 5. Yearly Tasks
+                    // 6. Yearly Tasks
                     if (dashboardTasks.yearlyTasks.isNotEmpty()) {
                         item {
                             DashboardTaskSectionHeader(

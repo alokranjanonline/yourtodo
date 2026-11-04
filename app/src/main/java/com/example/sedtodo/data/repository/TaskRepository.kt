@@ -131,6 +131,13 @@ object TaskRepository {
                 year = today.year,
                 month = today.monthValue,
                 dayOfMonth = today.dayOfMonth
+            ),
+            Task(
+                id = UUID.randomUUID().toString(),
+                userId = userId,
+                title = "Ongoing Project Research",
+                description = "Continuously research market trends until project is completed",
+                type = TaskType.TILL_COMPLETED
             )
         )
 
@@ -212,10 +219,12 @@ object TaskRepository {
     fun markTaskCompleted(taskId: String, date: LocalDate = LocalDate.now()) {
         val task = _tasks.value.find { it.id == taskId } ?: return
         when (task.type) {
-            TaskType.DAILY, TaskType.FIX_DATE -> {
+            TaskType.FIX_DATE, TaskType.TILL_COMPLETED -> {
+                // One-time tasks are deleted when completed
                 deleteTask(taskId)
             }
-            TaskType.WEEKLY, TaskType.MONTHLY, TaskType.YEARLY -> {
+            TaskType.DAILY, TaskType.WEEKLY, TaskType.MONTHLY, TaskType.YEARLY -> {
+                // Daily, Weekly, Monthly, and Yearly recurring tasks record completion date for today and reappear automatically on next occurrence
                 val updatedTask = task.copy(lastCompletedDate = date.toString())
                 updateTask(updatedTask)
             }

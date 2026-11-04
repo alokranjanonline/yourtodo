@@ -36,5 +36,10 @@ fun TaskType.getColors(): TaskTypeColors {
             container = Color(0xFFE8F5E9),
             onContainer = Color(0xFF1B5E20)
         )
+        TaskType.TILL_COMPLETED -> TaskTypeColors(
+            primary = Color(0xFF0288D1),
+            container = Color(0xFFE1F5FE),
+            onContainer = Color(0xFF01579B)
+        )
     }
 }
