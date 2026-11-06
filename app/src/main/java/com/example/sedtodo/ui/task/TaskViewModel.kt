@@ -17,10 +17,10 @@ data class TodayDashboardTasks(
     val weeklyTasks: List<Task> = emptyList(),
     val monthlyTasks: List<Task> = emptyList(),
     val yearlyTasks: List<Task> = emptyList(),
-    val tillCompletedTasks: List<Task> = emptyList()
+    val untilDoneTasks: List<Task> = emptyList()
 ) {
     val isEmpty: Boolean
-        get() = dailyTasks.isEmpty() && fixDateTasks.isEmpty() && weeklyTasks.isEmpty() && monthlyTasks.isEmpty() && yearlyTasks.isEmpty() && tillCompletedTasks.isEmpty()
+        get() = dailyTasks.isEmpty() && fixDateTasks.isEmpty() && weeklyTasks.isEmpty() && monthlyTasks.isEmpty() && yearlyTasks.isEmpty() && untilDoneTasks.isEmpty()
 }
 
 class TaskViewModel : ViewModel() {
@@ -36,7 +36,7 @@ class TaskViewModel : ViewModel() {
             weeklyTasks = scheduledToday.filter { it.type == TaskType.WEEKLY },
             monthlyTasks = scheduledToday.filter { it.type == TaskType.MONTHLY },
             yearlyTasks = scheduledToday.filter { it.type == TaskType.YEARLY },
-            tillCompletedTasks = scheduledToday.filter { it.type == TaskType.TILL_COMPLETED }
+            untilDoneTasks = scheduledToday.filter { it.type == TaskType.UNTIL_DONE }
         )
     }.stateIn(
         scope = viewModelScope,
@@ -66,6 +66,17 @@ class TaskViewModel : ViewModel() {
                 title = title.trim(),
                 description = description.trim(),
                 type = TaskType.DAILY
+            )
+            TaskRepository.addTask(task)
+        }
+    }
+
+    fun addUntilDoneTask(title: String, description: String) {
+        if (title.trim().isNotEmpty()) {
+            val task = Task(
+                title = title.trim(),
+                description = description.trim(),
+                type = TaskType.UNTIL_DONE
             )
             TaskRepository.addTask(task)
         }

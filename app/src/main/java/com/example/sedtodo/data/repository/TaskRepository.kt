@@ -60,12 +60,18 @@ object TaskRepository {
                         } else {
                             val userTasks = snapshot.documents.mapNotNull { doc ->
                                 try {
+                                    val typeStr = doc.getString("type") ?: "DAILY"
+                                    val taskType = when (typeStr) {
+                                        "TILL_COMPLETED", "UNTIL_DONE" -> TaskType.UNTIL_DONE
+                                        else -> try { TaskType.valueOf(typeStr) } catch (_: Exception) { TaskType.DAILY }
+                                    }
+
                                     Task(
                                         id = doc.id,
                                         userId = userId,
                                         title = doc.getString("title") ?: "",
                                         description = doc.getString("description") ?: "",
-                                        type = TaskType.valueOf(doc.getString("type") ?: "DAILY"),
+                                        type = taskType,
                                         daysOfWeek = (doc.get("daysOfWeek") as? List<*>)?.mapNotNull { (it as? Long)?.toInt() } ?: emptyList(),
                                         dayOfMonth = (doc.getLong("dayOfMonth") ?: 1L).toInt(),
                                         month = (doc.getLong("month") ?: 1L).toInt(),
@@ -90,6 +96,13 @@ object TaskRepository {
     private fun createInitialTasksForUser(userId: String) {
         val today = LocalDate.now()
         val initialTasks = listOf(
+            Task(
+                id = UUID.randomUUID().toString(),
+                userId = userId,
+                title = "Ongoing Project Research",
+                description = "Continuously research market trends until project is done",
+                type = TaskType.UNTIL_DONE
+            ),
             Task(
                 id = UUID.randomUUID().toString(),
                 userId = userId,
@@ -131,13 +144,6 @@ object TaskRepository {
                 year = today.year,
                 month = today.monthValue,
                 dayOfMonth = today.dayOfMonth
-            ),
-            Task(
-                id = UUID.randomUUID().toString(),
-                userId = userId,
-                title = "Ongoing Project Research",
-                description = "Continuously research market trends until project is completed",
-                type = TaskType.TILL_COMPLETED
             )
         )
 
@@ -219,8 +225,8 @@ object TaskRepository {
     fun markTaskCompleted(taskId: String, date: LocalDate = LocalDate.now()) {
         val task = _tasks.value.find { it.id == taskId } ?: return
         when (task.type) {
-            TaskType.FIX_DATE, TaskType.TILL_COMPLETED -> {
-                // One-time tasks are deleted when completed
+            TaskType.FIX_DATE, TaskType.UNTIL_DONE -> {
+                // One-time / Until Done tasks are deleted when completed
                 deleteTask(taskId)
             }
             TaskType.DAILY, TaskType.WEEKLY, TaskType.MONTHLY, TaskType.YEARLY -> {

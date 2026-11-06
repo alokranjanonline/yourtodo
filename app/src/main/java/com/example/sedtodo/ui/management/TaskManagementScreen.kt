@@ -94,19 +94,18 @@ fun TaskManagementScreen(
 
     val taskTypes = remember {
         listOf(
+            TaskType.UNTIL_DONE,
             TaskType.DAILY,
             TaskType.WEEKLY,
             TaskType.MONTHLY,
             TaskType.YEARLY,
-            TaskType.FIX_DATE,
-            TaskType.TILL_COMPLETED
+            TaskType.FIX_DATE
         )
     }
 
     val pagerState = rememberPagerState(initialPage = 0, pageCount = { taskTypes.size })
     val selectedTabIndex = pagerState.currentPage
 
-    val focusRequester = remember { FocusRequester() }
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
 
@@ -145,28 +144,6 @@ fun TaskManagementScreen(
     // Reset form when sliding to another tab page
     LaunchedEffect(pagerState.currentPage) {
         resetForm()
-    }
-
-    fun startEditing(task: Task) {
-        editingTaskId = task.id
-        titleInput = TextFieldValue(
-            text = task.title,
-            selection = TextRange(task.title.length)
-        )
-        descriptionInput = TextFieldValue(
-            text = task.description,
-            selection = TextRange(task.description.length)
-        )
-        isTitleError = false
-        selectedDaysOfWeek = if (task.daysOfWeek.isNotEmpty()) task.daysOfWeek else listOf(1)
-        selectedDayOfMonth = task.dayOfMonth
-        selectedMonth = task.month
-        selectedYear = task.year
-
-        coroutineScope.launch {
-            listState.animateScrollToItem(0)
-            focusRequester.requestFocus()
-        }
     }
 
     Column(
@@ -208,12 +185,12 @@ fun TaskManagementScreen(
                     text = {
                         Text(
                             text = when (type) {
+                                TaskType.UNTIL_DONE -> "Until Done"
                                 TaskType.DAILY -> "Daily Task"
                                 TaskType.WEEKLY -> "Weekly Task"
                                 TaskType.MONTHLY -> "Monthly Task"
                                 TaskType.YEARLY -> "Yearly Task"
                                 TaskType.FIX_DATE -> "At Fix Date"
-                                TaskType.TILL_COMPLETED -> "Till Completed"
                             },
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) colors.primary else MaterialTheme.colorScheme.onSurfaceVariant
@@ -234,6 +211,31 @@ fun TaskManagementScreen(
             val pageColors = pageType.getColors()
             val tasksForPageType = remember(allTasks, pageType) {
                 allTasks.filter { it.type == pageType }
+            }
+
+            // Per-page FocusRequester ensures focus management works reliably across all tabs
+            val pageFocusRequester = remember { FocusRequester() }
+
+            fun startEditing(task: Task) {
+                editingTaskId = task.id
+                titleInput = TextFieldValue(
+                    text = task.title,
+                    selection = TextRange(task.title.length)
+                )
+                descriptionInput = TextFieldValue(
+                    text = task.description,
+                    selection = TextRange(task.description.length)
+                )
+                isTitleError = false
+                selectedDaysOfWeek = if (task.daysOfWeek.isNotEmpty()) task.daysOfWeek else listOf(1)
+                selectedDayOfMonth = task.dayOfMonth
+                selectedMonth = task.month
+                selectedYear = task.year
+
+                coroutineScope.launch {
+                    listState.animateScrollToItem(0)
+                    pageFocusRequester.requestFocus()
+                }
             }
 
             LazyColumn(
@@ -301,7 +303,7 @@ fun TaskManagementScreen(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .focusRequester(focusRequester)
+                                    .focusRequester(pageFocusRequester)
                             )
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -319,7 +321,7 @@ fun TaskManagementScreen(
 
                             // Type-Specific Inputs
                             when (pageType) {
-                                TaskType.DAILY, TaskType.TILL_COMPLETED -> {
+                                TaskType.DAILY, TaskType.UNTIL_DONE -> {
                                     // Simple text box & description box only
                                 }
                                 TaskType.WEEKLY -> {
@@ -500,7 +502,7 @@ fun TaskManagementScreen(
                                     onClick = {
                                         if (titleInput.text.trim().isEmpty()) {
                                             isTitleError = true
-                                            focusRequester.requestFocus()
+                                            pageFocusRequester.requestFocus()
                                         } else {
                                             isTitleError = false
                                             val task = Task(
@@ -612,7 +614,7 @@ fun TaskManagementCard(
                 // Config Summary
                 val configSummary = when (task.type) {
                     TaskType.DAILY -> "Every Day"
-                    TaskType.TILL_COMPLETED -> "Displayed daily until completed"
+                    TaskType.UNTIL_DONE -> "Displayed daily until done"
                     TaskType.WEEKLY -> {
                         val daysMap = mapOf(1 to "Mon", 2 to "Tue", 3 to "Wed", 4 to "Thu", 5 to "Fri", 6 to "Sat", 7 to "Sun")
                         "Days: " + task.daysOfWeek.mapNotNull { daysMap[it] }.joinToString(", ")

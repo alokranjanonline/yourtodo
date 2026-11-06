@@ -8,7 +8,7 @@ enum class TaskType(val displayName: String) {
     WEEKLY("Weekly Task"),
     MONTHLY("Monthly Task"),
     YEARLY("Yearly Task"),
-    TILL_COMPLETED("Till Completed Task")
+    UNTIL_DONE("Until Done Task")
 }
 
 data class Task(
@@ -43,7 +43,7 @@ data class Task(
         
         return when (type) {
             TaskType.DAILY -> true
-            TaskType.TILL_COMPLETED -> true
+            TaskType.UNTIL_DONE -> true
             TaskType.FIX_DATE -> {
                 date.year == year && date.monthValue == month && date.dayOfMonth == dayOfMonth
             }

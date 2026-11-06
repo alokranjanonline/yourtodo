@@ -73,7 +73,7 @@ fun DashboardScreen(
     onRemoveAdsClick: () -> Unit = {}
 ) {
     val dashboardTasks by taskViewModel.todayDashboardTasks.collectAsState()
-    var showAddDailyTaskDialog by remember { mutableStateOf(false) }
+    var showAddUntilDoneTaskDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
 
     // Floating position offset for draggable FAB
@@ -162,16 +162,16 @@ fun DashboardScreen(
                         )
                     }
 
-                    // 1. Daily Tasks
-                    if (dashboardTasks.dailyTasks.isNotEmpty()) {
+                    // 1. Until Done Tasks (Displayed FIRST before Daily Tasks!)
+                    if (dashboardTasks.untilDoneTasks.isNotEmpty()) {
                         item {
                             DashboardTaskSectionHeader(
-                                title = "Daily Tasks",
-                                type = TaskType.DAILY,
-                                count = dashboardTasks.dailyTasks.size
+                                title = "Until Done Tasks",
+                                type = TaskType.UNTIL_DONE,
+                                count = dashboardTasks.untilDoneTasks.size
                             )
                         }
-                        items(dashboardTasks.dailyTasks, key = { it.id }) { task ->
+                        items(dashboardTasks.untilDoneTasks, key = { it.id }) { task ->
                             DashboardTaskCard(
                                 task = task,
                                 onMarkDone = {
@@ -182,16 +182,16 @@ fun DashboardScreen(
                         }
                     }
 
-                    // 2. Till Completed Tasks (Ongoing tasks that display daily until finished)
-                    if (dashboardTasks.tillCompletedTasks.isNotEmpty()) {
+                    // 2. Daily Tasks
+                    if (dashboardTasks.dailyTasks.isNotEmpty()) {
                         item {
                             DashboardTaskSectionHeader(
-                                title = "Till Completed Tasks",
-                                type = TaskType.TILL_COMPLETED,
-                                count = dashboardTasks.tillCompletedTasks.size
+                                title = "Daily Tasks",
+                                type = TaskType.DAILY,
+                                count = dashboardTasks.dailyTasks.size
                             )
                         }
-                        items(dashboardTasks.tillCompletedTasks, key = { it.id }) { task ->
+                        items(dashboardTasks.dailyTasks, key = { it.id }) { task ->
                             DashboardTaskCard(
                                 task = task,
                                 onMarkDone = {
@@ -285,10 +285,10 @@ fun DashboardScreen(
             }
         }
 
-        // Draggable FAB overlay
+        // Draggable FAB overlay configured for Until Done Tasks
         FloatingActionButton(
-            onClick = { showAddDailyTaskDialog = true },
-            containerColor = TaskType.DAILY.getColors().primary,
+            onClick = { showAddUntilDoneTaskDialog = true },
+            containerColor = TaskType.UNTIL_DONE.getColors().primary,
             contentColor = Color.White,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
@@ -304,19 +304,19 @@ fun DashboardScreen(
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
-                contentDescription = "Add Daily Task (Draggable)"
+                contentDescription = "Add Until Done Task (Draggable)"
             )
         }
     }
 
-    // Floating Action Add Daily Task Dialog
-    if (showAddDailyTaskDialog) {
-        AddDailyTaskDialog(
-            onDismiss = { showAddDailyTaskDialog = false },
+    // Floating Action Add Until Done Task Dialog
+    if (showAddUntilDoneTaskDialog) {
+        AddUntilDoneTaskDialog(
+            onDismiss = { showAddUntilDoneTaskDialog = false },
             onSubmit = { title, description ->
-                taskViewModel.addDailyTask(title, description)
-                Toast.makeText(context, "Daily task created successfully!", Toast.LENGTH_SHORT).show()
-                showAddDailyTaskDialog = false
+                taskViewModel.addUntilDoneTask(title, description)
+                Toast.makeText(context, "Until Done task created successfully!", Toast.LENGTH_SHORT).show()
+                showAddUntilDoneTaskDialog = false
             }
         )
     }
@@ -448,7 +448,7 @@ fun DashboardTaskCard(
 }
 
 @Composable
-fun AddDailyTaskDialog(
+fun AddUntilDoneTaskDialog(
     onDismiss: () -> Unit,
     onSubmit: (title: String, description: String) -> Unit
 ) {
@@ -466,9 +466,9 @@ fun AddDailyTaskDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "Add Daily Task",
+                text = "Add Until Done Task",
                 fontWeight = FontWeight.Bold,
-                color = TaskType.DAILY.getColors().primary
+                color = TaskType.UNTIL_DONE.getColors().primary
             )
         },
         text = {
